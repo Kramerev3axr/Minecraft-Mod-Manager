@@ -48,7 +48,7 @@ public class Manager
 		try 
 		{
 			Files.move(
-					Paths.get(unloadedPath + "\\" + chooser.getSelectedFile().getName()), 
+					Paths.get(chooser.getSelectedFile().getAbsolutePath()), 
 					Paths.get(modsPath + "\\" + chooser.getSelectedFile().getName()), 
 					StandardCopyOption.REPLACE_EXISTING);
 			System.out.println("Debug: Successfuly moved file");
