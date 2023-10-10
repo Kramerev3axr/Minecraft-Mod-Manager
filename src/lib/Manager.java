@@ -1,10 +1,15 @@
 package lib;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileFilter;
@@ -53,7 +58,10 @@ public class Manager
 					StandardCopyOption.REPLACE_EXISTING);
 			System.out.println("Debug: Successfuly moved file");
 		} 
-		catch (IOException e) {e.printStackTrace();}
+		catch (IOException e) 
+		{
+			e.printStackTrace();
+		}
 	}
 	
 	public void removeMod(JList list)
@@ -72,4 +80,40 @@ public class Manager
 		} 
 		catch (IOException e) {e.printStackTrace();}
 	}
+	
+	@SuppressWarnings("resource")
+	public List<String> chooseModList()
+	{
+		// Get Mods.txt
+		FileFilter modFilter = new FileNameExtensionFilter("Text Document (.txt)","txt");
+		JFileChooser chooser = new JFileChooser();
+		
+		chooser.setFileFilter(modFilter);
+		chooser.showOpenDialog(null);
+		
+	    String modsFile = "" + chooser.getSelectedFile().getAbsolutePath() + "";
+		
+		// Read from file
+    	List<String> modsLink = new ArrayList<String>(); 
+	    try
+	    {
+			BufferedReader reader = new BufferedReader(new FileReader(modsFile));
+			String line = reader.readLine();
+			
+			while (line != null)
+			{
+				
+				modsLink.add(line);
+				// Read next line
+				line = reader.readLine();
+			}
+	    } 
+	    catch (IOException e)
+	    {
+	    	e.printStackTrace();
+	    }
+		
+		System.out.println(Arrays.toString(modsLink.toArray()));
+		return modsLink;
+	}	
 }
