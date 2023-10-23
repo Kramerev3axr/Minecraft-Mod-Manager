@@ -3,19 +3,33 @@ import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.swing.*;
+
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 import lib.Manager;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
 public class managerApp 
 {
+	static JProgressBar progBar = new JProgressBar();
+	
     static JScrollPane scrollPane = new JScrollPane();
 	static JPanel panel = new JPanel();
 	static JList list;
@@ -28,7 +42,7 @@ public class managerApp
 		gui();
 	}
 
-	public static void gui()
+	private static void gui()
 	{
 		Manager man = new Manager();
 		String[] files = {};
@@ -44,7 +58,7 @@ public class managerApp
         GroupLayout groupLayout = new GroupLayout(contentPanel);  
         contentPanel.setLayout(groupLayout);  
 		
-        //List
+        // List
 		list = new JList(man.readFiles(files));
 		
 		scrollPane.setPreferredSize(new Dimension(300, 300));
@@ -57,7 +71,7 @@ public class managerApp
 		
 		frame.add(panel);
 		
-		//Buttons
+		// Buttons
 		JButton add = new JButton("Load");
 		add.setPreferredSize(new Dimension(155, 30));
 		add.setFocusPainted(false);
@@ -118,9 +132,13 @@ public class managerApp
 		});
 		frame.add(settingsButton);
 		
+		// Progress Bar
+		progBar.setPreferredSize(new Dimension(315, 25));
+		frame.add(progBar);
+		
 		//Layout
 		frame.setLayout(new FlowLayout(FlowLayout.LEFT));
-		frame.setSize(340,475);
+		frame.setSize(340,508);
 		frame.setVisible(true);
 	}
 	
@@ -212,29 +230,111 @@ public class managerApp
 	{
 		new Thread(()->
 		{
-			for (int i = 0; i < modsLink.size(); i += 2)
+			int modsDownloaded = 0;
+			List<String> modsFailed = new ArrayList<String>();
+			
+			progBar.setMaximum(modsLink.size());
+			progBar.setStringPainted(true);
+			
+			for (int i = 0; i < modsLink.size(); i++) // Loop through file
 			{
+				HttpResponse<String> response = null;
 				try 
 				{
-					String fileName = modsLink.get(i);
-					int linkLength = modsLink.get(i + 1).length();
-					String modCDN = "https://mediafilez.forgecdn.net/files/"
-							+ modsLink.get(i+1).substring(linkLength - 7, linkLength - 3) 
-							+ "/" 
-							+ modsLink.get(i+1).substring(linkLength - 3)
-							+ "/"
-							+ fileName;
-					//System.out.println(modCDN);
-					Files.copy(
-							new URL(modCDN).openStream(),
-							Paths.get(System.getenv("APPDATA") + "\\.minecraft\\mods\\" + fileName));
-					refreshList();
+					String api_key = "$2a$10$rVQoptJ.v8KWuPZQNSFjgu2/MRvHr45WWwiG3XMhrBtpWY1blFt42";
 					
-					System.out.println("Finished downloading " + fileName);
+					String modID = "";
+					String modFileID = "";
+					
+					int underscoreLoc = 0;
+					int hashtagLoc = modsLink.get(i).length();
+					
+					for (int j = 0; j < modsLink.get(i).length(); j++) // Loop through line
+					{
+						if (modsLink.get(i).charAt(j) == '_')
+						{
+							underscoreLoc = j;
+						}
+						
+						// Commenting System
+						if (modsLink.get(i).charAt(j) == '#' && modsLink.get(i).charAt(j - 1) == ' ') // Check for space before # 
+						{
+							hashtagLoc = j - 1;
+						}
+						
+						if (modsLink.get(i).charAt(j) == '#' && modsLink.get(i).charAt(j - 1) != ' ') // Check if no space before #
+						{
+							hashtagLoc = j;
+						}
+						
+						modID = modsLink.get(i).substring(0, underscoreLoc);
+						modFileID = modsLink.get(i).substring(underscoreLoc + 1, hashtagLoc);
+					}
+					
+//					System.out.println("modID: " + modID);
+//					System.out.println("modFileID: " + modFileID);
+					
+					HttpRequest request = HttpRequest.newBuilder() // API Request
+							.uri(URI.create("https://api.curseforge.com/v1/mods/" + modID + "/files/" + modFileID))
+							.header("Accept", "application/json")
+							.header("x-api-key", api_key)
+							.method("GET", HttpRequest.BodyPublishers.noBody())
+							.build();
+					
+					response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+					
+					JSONParser parser = new JSONParser(); // Parse Response
+					JSONObject jsonResponse = (JSONObject) parser.parse(response.body().toString());
+					
+					JSONObject data = (JSONObject) jsonResponse.get("data");
+					
+					if (data.get("downloadUrl") != null)
+					{
+						String modCDN = data.get("downloadUrl").toString();
+						String fileName = data.get("fileName").toString();
+						
+	//					System.out.println(modCDN);
+						
+						// Download File
+						Files.copy(
+								new URL(modCDN).openStream(),
+								Paths.get(System.getenv("APPDATA") + "\\.minecraft\\mods\\" + fileName),
+								StandardCopyOption.REPLACE_EXISTING);
+						refreshList();
+						
+						System.out.println("Finished downloading " + fileName);
+					}
+					else
+					{
+						modsFailed.add(modsLink.get(i));
+					}
+					
+					modsDownloaded += 1;
+					
+					progBar.setValue(modsDownloaded);
 				}
-				catch (IOException e1) 
+				catch (IOException | InterruptedException | ParseException e1) 
 				{
 					e1.printStackTrace();
+					modsFailed.add(modsLink.get(i));
+				}
+			}
+			System.out.println("Mods downloaded: " + modsDownloaded + "/" + modsLink.size());
+			
+			if (modsFailed.size() > 0)
+			{
+				System.out.println("Mods failed: " + Arrays.toString(modsFailed.toArray()));
+				try 
+				{
+					FileWriter writer = new FileWriter("ERROR.txt");
+					writer.write("ERROR DOWNLOADING THE FOLLOWING FILES: \n\r" + Arrays.toString(modsFailed.toArray()));
+					writer.close();
+					
+					Desktop.getDesktop().open(new File("ERROR.txt"));
+				} 
+				catch (IOException e) 
+				{
+					e.printStackTrace();
 				}
 			}
 		}).start();

@@ -102,8 +102,11 @@ public class Manager
 			
 			while (line != null)
 			{
+				if (!line.isEmpty()) // Skip empty lines
+				{
+					modsLink.add(line);
+				}
 				
-				modsLink.add(line);
 				// Read next line
 				line = reader.readLine();
 			}
